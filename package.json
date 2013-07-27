@@ -14,8 +14,9 @@
   "repository": "https://github.com/shinken-monitoring/mod-logstore-mongodb",
   "keywords": [
     "module",
-    "arbiter",
-    "ip"
+    "livestatus",
+    "broker",
+    "logs"
   ],
   "dependencies": {
     "shinken": ">=1.4"
