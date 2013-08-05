@@ -25,7 +25,7 @@
 # This file is used to test host- and service-downtimes.
 #
 
-from shinken_test import *
+from shinken_modules import *
 import os
 import sys
 import re
@@ -50,9 +50,9 @@ except Exception:
 sys.setcheckinterval(10000)
 
 
-class TestConfig(ShinkenTest):
+class TestConfig(ShinkenModulesTest):
     def setUp(self):
-        subprocess.call(["test_livestatus/test_mongodb.sh", "start", ">/dev/null", "2>&1"])
+        subprocess.call(["tmp/mod-logstore-mongodb/test/test_livestatus/test_mongodb.sh", "start", ">/dev/null", "2>&1"])
 
     def contains_line(self, text, pattern):
         regex = re.compile(pattern)
@@ -79,7 +79,7 @@ class TestConfig(ShinkenTest):
         if os.path.exists('var/status.dat'):
             os.remove('var/status.dat')
         self.livestatus_broker = None
-        subprocess.call(["test_livestatus/test_mongodb.sh", "stop", ">/dev/null", "2>&1"])
+        subprocess.call(["tmp/mod-logstore-mongodb/test/test_livestatus/test_mongodb.sh", "stop", ">/dev/null", "2>&1"])
 
 
 
