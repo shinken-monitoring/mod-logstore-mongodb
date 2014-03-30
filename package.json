@@ -16,7 +16,10 @@
     "module",
     "livestatus",
     "broker",
-    "logs"
+    "logs",
+    "log",
+    "logstore",
+    "mongodb"
   ],
   "dependencies": {
     "shinken": ">=1.4"
