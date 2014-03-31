@@ -19,6 +19,7 @@
     "logs",
     "log",
     "logstore",
+    "mod-logstore-mongodb",
     "mongodb"
   ],
   "dependencies": {
