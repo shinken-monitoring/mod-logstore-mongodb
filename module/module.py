@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 # -*- coding: utf-8 -*-
 
 # Copyright (C) 2009-2012:
@@ -43,12 +42,16 @@ from shinken.modulesctx import modulesctx
 # Import a class from the livestatus module, should be already loaded!
 livestatus = modulesctx.get_module('livestatus')
 
+# when livestatus will be correctly setup, replace:
 LiveStatusStack = livestatus.LiveStatusStack
 LOGCLASS_INVALID = livestatus.LOGCLASS_INVALID
 Logline = livestatus.Logline
+# by:
+#from livestatus import LiveStatusStack
+#from livestatus.log_line import LOGCLASS_INVALID, Logline
 
 
-from pymongo import Connection
+
 try:
     from pymongo import ReplicaSetConnection, ReadPreference
 except ImportError:
@@ -57,7 +60,6 @@ except ImportError:
 from pymongo.errors import AutoReconnect
 
 from shinken.basemodule import BaseModule
-from shinken.objects.module import Module
 from shinken.log import logger
 from shinken.util import to_bool
 

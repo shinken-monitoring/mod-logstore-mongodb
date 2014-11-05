@@ -25,21 +25,38 @@
 # This file is used to test host- and service-downtimes.
 #
 
-from shinken_modules import *
+
+from __future__ import print_function
+
 import os
 import sys
 import re
 import subprocess
-import shutil
 import time
 import random
-import copy
+import unittest
 
+#sys.path.append('../shinken/modules')
 
-sys.path.append('../shinken/modules')
+from shinken_modules import ShinkenModulesTest
+from shinken_test import time_hacker
 
+from shinken.modulesctx import modulesctx
+from shinken.objects.module import Module
 from shinken.comment import Comment
 from shinken.objects.service import Service
+
+
+from mock_livestatus import mock_livestatus_handle_request
+
+
+
+from livestatus.log_line import Logline
+
+
+LiveStatusLogStoreMongoDB = modulesctx.get_module('logstore-mongodb').LiveStatusLogStoreMongoDB
+
+
 
 try:
     import pymongo
@@ -50,16 +67,71 @@ except Exception:
 sys.setcheckinterval(10000)
 
 
-class TestConfig(ShinkenModulesTest):
-    def setUp(self):
-        subprocess.call(["tmp/mod-logstore-mongodb/test/test_livestatus/test_mongodb.sh", "start", ">/dev/null", "2>&1"])
+# temp path for mongod files :
+# as you can see it's relative path, that'll be relative to where the test is launched,
+# which should be in the Shinken test directory.
+_mongo_tmp_path = "./tmp/mongo"
+_mongo_db = os.path.join(_mongo_tmp_path, 'db')
+_mongo_log = os.path.join(_mongo_tmp_path, 'log.txt')
 
-    def contains_line(self, text, pattern):
-        regex = re.compile(pattern)
-        for line in text.splitlines():
-            if re.search(regex, line):
-                return True
-        return False
+_port = 27017
+_db_uri = "mongodb://127.0.0.1:%s" % _port
+
+
+@mock_livestatus_handle_request
+class TestConfig(ShinkenModulesTest):
+
+    @classmethod
+    def setUpClass(cls):
+        os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
+        os.makedirs(_mongo_db)
+        print('Starting embedded mongo daemon..')
+        mp = cls._mongo_proc = subprocess.Popen(
+            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(_port), '--logpath', _mongo_log]),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
+        )
+        print('Giving it some secs to correctly start..')
+        time_hacker.set_real_time()
+        # mongo takes some time to startup as it creates freshly new database files
+        # so we need a relatively big timeout:
+        timeout = time.time() + 30
+        while time.time() < timeout:
+            time.sleep(1)
+            mp.poll()
+            if mp.returncode is not None:
+                try:
+                    mongolog = open(_mongo_log).read()
+                except Exception as err:
+                    mongolog = "Couldn't read log from mongo log file: %s" % err
+                raise RuntimeError("Launched mongod but it's directly died: rc=%s stdout/err=%s ; monglog=%s" % (
+                    mp.returncode, mp.stdout.read(), mongolog))
+
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            errno = sock.connect_ex(('127.0.0.1', _port))
+            if not errno:
+                break
+        else:
+            mp.kill()
+            raise RuntimeError('could not connect to port %s : mongod failed to correctly start?' % _port)
+        time_hacker.set_my_time()
+
+    @classmethod
+    def tearDownClass(cls):
+        mp = cls._mongo_proc
+        mp.terminate()
+        print('Waiting mongod server to exit ..')
+        time_hacker.set_real_time()
+        for _ in range(5):
+            if mp.returncode is not None:
+                break
+            time.sleep(2)
+        else:
+            print("didn't exited after 5 secs ! killing it..")
+            mp.kill()
+        mp.wait()
+        os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
+
 
     def tearDown(self):
         self.livestatus_broker.db.commit()
@@ -70,7 +142,7 @@ class TestConfig(ShinkenModulesTest):
             os.remove(self.livelogs + "-journal")
         if os.path.exists("tmp/archives"):
             for db in os.listdir("tmp/archives"):
-                print "cleanup", db
+                print("cleanup", db)
                 os.remove(os.path.join("tmp/archives", db))
         if os.path.exists('var/nagios.log'):
             os.remove('var/nagios.log')
@@ -79,27 +151,27 @@ class TestConfig(ShinkenModulesTest):
         if os.path.exists('var/status.dat'):
             os.remove('var/status.dat')
         self.livestatus_broker = None
-        subprocess.call(["tmp/mod-logstore-mongodb/test/test_livestatus/test_mongodb.sh", "stop", ">/dev/null", "2>&1"])
 
 
 
+@mock_livestatus_handle_request
 class TestConfigSmall(TestConfig):
     def setUp(self):
         if not has_pymongo:
             return
-        super(self.__class__, self).setUp()
+        super(TestConfigSmall, self).setUp()
         self.setup_with_file('etc/shinken_1r_1h_1s.cfg')
         Comment.id = 1
         self.testid = str(os.getpid() + random.randint(1, 1000))
 
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
-            'mongodb_uri': "mongodb://127.0.0.1:27017",
+            'mongodb_uri': _db_uri,
             'database': 'testtest' + self.testid,
         })
 
         self.init_livestatus(dbmodconf=dbmodconf)
-        print "Cleaning old broks?"
+        print("Cleaning old broks?")
         self.sched.conf.skip_initial_broks = False
         self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
         self.sched.fill_initial_broks('Default-Broker')
@@ -113,19 +185,6 @@ class TestConfigSmall(TestConfig):
         host = self.sched.hosts.find_by_name("test_host_0")
         host.__class__.use_aggressive_host_checking = 1
 
-    def write_logs(self, host, loops=0):
-        for loop in range(0, loops):
-            host.state = 'DOWN'
-            host.state_type = 'SOFT'
-            host.attempt = 1
-            host.output = "i am down"
-            host.raise_alert_log_entry()
-            host.state = 'UP'
-            host.state_type = 'HARD'
-            host.attempt = 1
-            host.output = "i am down"
-            host.raise_alert_log_entry()
-            self.update_broker()
 
     def test_one_log(self):
         if not has_pymongo:
@@ -148,34 +207,34 @@ class TestConfigSmall(TestConfig):
         host.raise_alert_log_entry()
         time.sleep(3600)
         self.update_broker()
-        print "-------------------------------------------"
-        print "Service.lsm_host_name", Service.lsm_host_name
-        print "Logline.lsm_current_host_name", Logline.lsm_current_host_name
-        print "-------------------------------------------"
+        print("-------------------------------------------")
+        print("Service.lsm_host_name", Service.lsm_host_name)
+        print("Logline.lsm_current_host_name", Logline.lsm_current_host_name)
+        print("-------------------------------------------")
 
-        print "request logs from", int(now - 3600), int(now + 3600)
-        print "request logs from", time.asctime(time.localtime(int(now - 3600))), time.asctime(time.localtime(int(now + 3600)))
+        print("request logs from", int(now - 3600), int(now + 3600))
+        print("request logs from", time.asctime(time.localtime(int(now - 3600))), time.asctime(time.localtime(int(now + 3600))))
         request = """GET log
 Filter: time >= """ + str(int(now - 3600)) + """
 Filter: time <= """ + str(int(now + 3600)) + """
 Columns: time type options state host_name"""
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
-        print response
+        print(response)
         name = 'testtest' + self.testid
         numlogs = self.livestatus_broker.db.conn[name].logs.find().count()
-        print numlogs
+        print(numlogs)
         self.assert_(numlogs == 2)
         curs = self.livestatus_broker.db.conn[name].logs.find()
         self.assert_(curs[0]['state_type'] == 'SOFT')
         self.assert_(curs[1]['state_type'] == 'HARD')
 
 
-
+@mock_livestatus_handle_request
 class TestConfigBig(TestConfig):
     def setUp(self):
         if not has_pymongo:
             return
-        super(self.__class__, self).setUp()
+        super(TestConfigBig, self).setUp()
         start_setUp = time.time()
         self.setup_with_file('etc/shinken_5r_100h_2000s.cfg')
         Comment.id = 1
@@ -183,18 +242,18 @@ class TestConfigBig(TestConfig):
 
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
-            'mongodb_uri': "mongodb://127.0.0.1:27017",
+            'mongodb_uri': _db_uri,
             'database': 'testtest' + self.testid,
         })
 
         self.init_livestatus(dbmodconf=dbmodconf)
-        print "Cleaning old broks?"
+        print("Cleaning old broks?")
         self.sched.conf.skip_initial_broks = False
         self.sched.brokers['Default-Broker'] = {'broks' : {}, 'has_full_broks' : False}
         self.sched.fill_initial_broks('Default-Broker')
 
         self.update_broker()
-        print "************* Overall Setup:", time.time() - start_setUp
+        print("************* Overall Setup:", time.time() - start_setUp)
         # add use_aggressive_host_checking so we can mix exit codes 1 and 2
         # but still get DOWN state
         host = self.sched.hosts.find_by_name("test_host_000")
@@ -219,15 +278,15 @@ class TestConfigBig(TestConfig):
 
         days = 4
         etime = time.time()
-        print "now it is", time.ctime(etime)
-        print "now it is", time.gmtime(etime)
+        print("now it is", time.ctime(etime))
+        print("now it is", time.gmtime(etime))
         etime_midnight = (etime - (etime % 86400)) + time.altzone
-        print "midnight was", time.ctime(etime_midnight)
-        print "midnight was", time.gmtime(etime_midnight)
+        print("midnight was", time.ctime(etime_midnight))
+        print("midnight was", time.gmtime(etime_midnight))
         query_start = etime_midnight - (days - 1) * 86400
         query_end = etime_midnight
-        print "query_start", time.ctime(query_start)
-        print "query_end ", time.ctime(query_end)
+        print("query_start", time.ctime(query_start))
+        print("query_end ", time.ctime(query_end))
 
         # |----------|----------|----------|----------|----------|---x
         #                                                            etime
@@ -245,7 +304,7 @@ class TestConfigBig(TestConfig):
         #
         loops = int(86400 / 192)
         time_hacker.time_warp(-1 * days * 86400)
-        print "warp back to", time.ctime(time.time())
+        print("warp back to", time.ctime(time.time()))
         # run silently
         old_stdout = sys.stdout
         sys.stdout = open(os.devnull, "w")
@@ -330,7 +389,7 @@ class TestConfigBig(TestConfig):
         self.livestatus_broker.db.commit_and_rotate_log_db()
         name = 'testtest' + self.testid
         numlogs = self.livestatus_broker.db.conn[name].logs.find().count()
-        print "numlogs is", numlogs
+        print("numlogs is", numlogs)
 
         # now we have a lot of events
         # find type = HOST ALERT for test_host_005
@@ -356,14 +415,14 @@ OutputFormat: json"""
         # switch back to realtime. we want to know how long it takes
         time_hacker.set_real_time()
 
-        print request
-        print "query 1 --------------------------------------------------"
+        print(request)
+        print("query 1 --------------------------------------------------")
         tic = time.time()
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         tac = time.time()
         pyresponse = eval(response)
-        print response
-        print "number of records with test_ok_01", len(pyresponse)
+        print(response)
+        print("number of records with test_ok_01", len(pyresponse))
         self.assert_(len(pyresponse) == should_be)
 
         # and now test Negate:
@@ -389,7 +448,7 @@ And: 2
 OutputFormat: json"""
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         notpyresponse = eval(response)
-        print "number of records without test_ok_01", len(notpyresponse)
+        print("number of records without test_ok_01", len(notpyresponse))
 
         request = """GET log
 Filter: time >= """ + str(int(query_start)) + """
@@ -408,7 +467,7 @@ Or: 8
 OutputFormat: json"""
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         allpyresponse = eval(response)
-        print "all records", len(allpyresponse)
+        print("all records", len(allpyresponse))
         self.assert_(len(allpyresponse) == len(notpyresponse) + len(pyresponse))
 
 
@@ -420,7 +479,7 @@ Filter: class = 1
 OutputFormat: json"""
         response, keepalive = self.livestatus_broker.livestatus.handle_request(request)
         allpyresponse = eval(response)
-        print "all records", len(allpyresponse)
+        print("all records", len(allpyresponse))
         self.assert_(len(allpyresponse) == len(notpyresponse) + len(pyresponse))
 
         # now delete too old entries from the database (> 14days)
@@ -430,7 +489,7 @@ OutputFormat: json"""
         numlogs = self.livestatus_broker.db.conn[name].logs.find().count()
         times = [x['time'] for x in self.livestatus_broker.db.conn[name].logs.find()]
         self.assert_(times != [])
-        print "whole database", numlogs, min(times), max(times)
+        print("whole database", numlogs, min(times), max(times))
         numlogs = self.livestatus_broker.db.conn[name].logs.find({
             '$and': [
                 {'time': {'$gt': min(times)}},
@@ -446,7 +505,7 @@ OutputFormat: json"""
                     {'time': {'$lte': now}}
                 ]}).count()
             daycount[day] = numlogs
-            print "day -%02d %d..%d - %d" % (day, one_day_earlier, now, numlogs)
+            print("day -%02d %d..%d - %d" % (day, one_day_earlier, now, numlogs))
             now = one_day_earlier
         self.livestatus_broker.db.commit_and_rotate_log_db()
         now = max(times)
@@ -457,7 +516,7 @@ OutputFormat: json"""
                     {'time': {'$gt': one_day_earlier}},
                     {'time': {'$lte': now}}
                 ]}).count()
-            print "day -%02d %d..%d - %d" % (day, one_day_earlier, now, numlogs)
+            print("day -%02d %d..%d - %d" % (day, one_day_earlier, now, numlogs))
             now = one_day_earlier
         numlogs = self.livestatus_broker.db.conn[name].logs.find().count()
         # simply an estimation. the cleanup-routine in the mongodb logstore
@@ -474,13 +533,14 @@ OutputFormat: json"""
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
             'database': 'bigbigbig',
-            'mongodb_uri': "mongodb://127.0.0.1:27017",
+            'mongodb_uri': _db_uri,
             'max_logs_age': '7y',
         })
 
-        print dbmodconf.max_logs_age
+        print(dbmodconf.max_logs_age)
         livestatus_broker = LiveStatusLogStoreMongoDB(dbmodconf)
-        self.assert_(livestatus_broker.max_logs_age == 7*365)
+        self.assertEqual(7*365, livestatus_broker.max_logs_age)
+
 
 
 if __name__ == '__main__':
