@@ -160,17 +160,17 @@ class LiveStatusLogStoreMongoDB(BaseModule):
                 #self.db.read_preference = ReadPreference.SECONDARY
             self.is_connected = CONNECTED
             self.next_log_db_rotate = time.time()
-        except AutoReconnect, exp:
+        except AutoReconnect as err:
             # now what, ha?
-            logger.error("[LogStoreMongoDB] LiveStatusLogStoreMongoDB.AutoReconnect %s" % (exp))
+            logger.error("[LogStoreMongoDB] LiveStatusLogStoreMongoDB.AutoReconnect %s" % err)
             # The mongodb is hopefully available until this module is restarted
-            raise LiveStatusLogStoreError
-        except Exception, exp:
+            raise LiveStatusLogStoreError(err)
+        except Exception as err:
             # If there is a replica_set, but the host is a simple standalone one
             # we get a "No suitable hosts found" here.
             # But other reasons are possible too.
-            logger.error("[LogStoreMongoDB] Could not open the database" % exp)
-            raise LiveStatusLogStoreError
+            logger.error("[LogStoreMongoDB] Could not open the database: %s" % err)
+            raise LiveStatusLogStoreError(err)
 
     def close(self):
         self.conn.disconnect()
