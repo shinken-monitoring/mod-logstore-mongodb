@@ -240,7 +240,7 @@ class LiveStatusLogStoreMongoDB(BaseModule):
                 self.backlog.append(values)
             except Exception, exp:
                 self.is_connected = DISCONNECTED
-                logger.error("[LogStoreMongoDB] Databased error occurred:" % exp)
+                logger.error("[LogStoreMongoDB] Databased error occurred: %s" % exp)
             # FIXME need access to this #self.livestatus.count_event('log_message')
         else:
             logger.info("[LogStoreMongoDB] This line is invalid: %s" % line)
