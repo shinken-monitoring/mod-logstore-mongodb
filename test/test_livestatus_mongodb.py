@@ -29,17 +29,18 @@
 from __future__ import print_function
 
 import os
+import socket
 import sys
 import re
 import subprocess
 import time
 import random
-import unittest
+
 
 #sys.path.append('../shinken/modules')
 
 from shinken_modules import ShinkenModulesTest
-from shinken_test import time_hacker
+from shinken_test import time_hacker, unittest
 
 from shinken.modulesctx import modulesctx
 from shinken.objects.module import Module
@@ -74,9 +75,6 @@ _mongo_tmp_path = "./tmp/mongo"
 _mongo_db = os.path.join(_mongo_tmp_path, 'db')
 _mongo_log = os.path.join(_mongo_tmp_path, 'log.txt')
 
-_port = 27017
-_db_uri = "mongodb://127.0.0.1:%s" % _port
-
 
 @mock_livestatus_handle_request
 class TestConfig(ShinkenModulesTest):
@@ -86,8 +84,13 @@ class TestConfig(ShinkenModulesTest):
         os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
         os.makedirs(_mongo_db)
         print('Starting embedded mongo daemon..')
+        sock = socket.socket()
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+        sock.close()
+        cls.mongo_db_uri = "mongodb://127.0.0.1:%s" % port
         mp = cls._mongo_proc = subprocess.Popen(
-            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(_port), '--logpath', _mongo_log]),
+            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(port), '--logpath', _mongo_log]),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
         )
         print('Giving it some secs to correctly start..')
@@ -106,10 +109,10 @@ class TestConfig(ShinkenModulesTest):
                 raise RuntimeError("Launched mongod but it's directly died: rc=%s stdout/err=%s ; monglog=%s" % (
                     mp.returncode, mp.stdout.read(), mongolog))
 
-            import socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            errno = sock.connect_ex(('127.0.0.1', _port))
+            errno = sock.connect_ex(('127.0.0.1', port))
             if not errno:
+                sock.close()
                 break
         else:
             mp.kill()
@@ -123,11 +126,11 @@ class TestConfig(ShinkenModulesTest):
         print('Waiting mongod server to exit ..')
         time_hacker.set_real_time()
         for _ in range(5):
+            time.sleep(2)
             if mp.returncode is not None:
                 break
-            time.sleep(2)
         else:
-            print("didn't exited after 5 secs ! killing it..")
+            print("didn't exited after 10 secs ! killing it..")
             mp.kill()
         mp.wait()
         os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
@@ -166,7 +169,7 @@ class TestConfigSmall(TestConfig):
 
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
-            'mongodb_uri': _db_uri,
+            'mongodb_uri': self.mongo_db_uri,
             'database': 'testtest' + self.testid,
         })
 
@@ -242,7 +245,7 @@ class TestConfigBig(TestConfig):
 
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
-            'mongodb_uri': _db_uri,
+            'mongodb_uri': self.mongo_db_uri,
             'database': 'testtest' + self.testid,
         })
 
@@ -533,7 +536,7 @@ OutputFormat: json"""
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
             'database': 'bigbigbig',
-            'mongodb_uri': _db_uri,
+            'mongodb_uri': self.mongo_db_uri,
             'max_logs_age': '7y',
         })
 
