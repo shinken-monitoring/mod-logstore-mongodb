@@ -35,12 +35,12 @@ import re
 import subprocess
 import time
 import random
-import unittest
+
 
 #sys.path.append('../shinken/modules')
 
 from shinken_modules import ShinkenModulesTest
-from shinken_test import time_hacker
+from shinken_test import time_hacker, unittest
 
 from shinken.modulesctx import modulesctx
 from shinken.objects.module import Module

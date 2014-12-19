@@ -24,6 +24,7 @@ git clone https://github.com/naparuba/shinken.git ~/shinken
 
 [ -f test/dep_modules.txt ] && setup_submodule
 [ -f requirements.txt ] && pip install -r requirements.txt
+[ -f test/requirements.txt ] && pip install -r test/requirements.txt
 
 # if we have test config files we probably also need them in the shinken/test directory :
 [ -d test/etc ] && cp -r test/etc ~/shinken/test/
