@@ -111,7 +111,7 @@ class TestConfig(ShinkenModulesTest):
                 break
         else:
             mp.kill()
-            raise RuntimeError('could not connect to port %s : mongod failed to correctly start?' % _port)
+            raise RuntimeError('could not connect to port %s : mongod failed to correctly start?' % port)
         time_hacker.set_my_time()
 
     @classmethod
