@@ -59,12 +59,6 @@ LiveStatusLogStoreMongoDB = modulesctx.get_module('logstore-mongodb').LiveStatus
 
 
 
-try:
-    import pymongo
-    has_pymongo = True
-except Exception:
-    has_pymongo = False
-
 sys.setcheckinterval(10000)
 
 
@@ -74,6 +68,7 @@ sys.setcheckinterval(10000)
 _mongo_tmp_path = "./tmp/mongo"
 _mongo_db = os.path.join(_mongo_tmp_path, 'db')
 _mongo_log = os.path.join(_mongo_tmp_path, 'log.txt')
+
 
 
 @mock_livestatus_handle_request
@@ -160,8 +155,6 @@ class TestConfig(ShinkenModulesTest):
 @mock_livestatus_handle_request
 class TestConfigSmall(TestConfig):
     def setUp(self):
-        if not has_pymongo:
-            return
         super(TestConfigSmall, self).setUp()
         self.setup_with_file('etc/shinken_1r_1h_1s.cfg')
         Comment.id = 1
@@ -190,8 +183,6 @@ class TestConfigSmall(TestConfig):
 
 
     def test_one_log(self):
-        if not has_pymongo:
-            return
         self.print_header()
         host = self.sched.hosts.find_by_name("test_host_0")
         now = time.time()
@@ -235,8 +226,6 @@ Columns: time type options state host_name"""
 @mock_livestatus_handle_request
 class TestConfigBig(TestConfig):
     def setUp(self):
-        if not has_pymongo:
-            return
         super(TestConfigBig, self).setUp()
         start_setUp = time.time()
         self.setup_with_file('etc/shinken_5r_100h_2000s.cfg')
@@ -268,8 +257,6 @@ class TestConfigBig(TestConfig):
 
 
     def test_a_long_history(self):
-        if not has_pymongo:
-            return
         # copied from test_livestatus_cache
         test_host_005 = self.sched.hosts.find_by_name("test_host_005")
         test_host_099 = self.sched.hosts.find_by_name("test_host_099")
