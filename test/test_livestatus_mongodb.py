@@ -120,7 +120,7 @@ class TestConfig(ShinkenModulesTest):
         mp.terminate()
         print('Waiting mongod server to exit ..')
         time_hacker.set_real_time()
-        for _ in range(5):
+        for _ in range(10):
             time.sleep(2)
             if mp.returncode is not None:
                 break
@@ -518,8 +518,6 @@ OutputFormat: json"""
         time_hacker.set_my_time()
 
     def test_max_logs_age(self):
-        if not has_pymongo:
-            return
         dbmodconf = Module({'module_name': 'LogStore',
             'module_type': 'logstore_mongodb',
             'database': 'bigbigbig',
