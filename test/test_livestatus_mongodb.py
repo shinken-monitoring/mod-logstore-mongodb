@@ -122,7 +122,7 @@ class TestConfig(ShinkenModulesTest):
         time_hacker.set_real_time()
         for _ in range(10):
             time.sleep(2)
-            if mp.returncode is not None:
+            if mp.poll() is not None:
                 break
         else:
             print("didn't exited after 10 secs ! killing it..")
