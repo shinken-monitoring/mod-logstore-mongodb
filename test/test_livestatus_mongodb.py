@@ -85,7 +85,7 @@ class TestConfig(ShinkenModulesTest):
         sock.close()
         cls.mongo_db_uri = "mongodb://127.0.0.1:%s" % port
         mp = cls._mongo_proc = subprocess.Popen(
-            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(port), '--logpath', _mongo_log]),
+            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(port), '--logpath', _mongo_log, '--smallfiles']),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
         )
         print('Giving it some secs to correctly start..')
