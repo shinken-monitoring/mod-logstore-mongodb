@@ -35,6 +35,7 @@ import re
 import subprocess
 import time
 import random
+import tempfile
 
 
 #sys.path.append('../shinken/modules')
@@ -58,26 +59,33 @@ from livestatus.log_line import Logline
 LiveStatusLogStoreMongoDB = modulesctx.get_module('logstore-mongodb').LiveStatusLogStoreMongoDB
 
 
-
 sys.setcheckinterval(10000)
-
-
-# temp path for mongod files :
-# as you can see it's relative path, that'll be relative to where the test is launched,
-# which should be in the Shinken test directory.
-_mongo_tmp_path = "./tmp/mongo"
-_mongo_db = os.path.join(_mongo_tmp_path, 'db')
-_mongo_log = os.path.join(_mongo_tmp_path, 'log.txt')
-
 
 
 @mock_livestatus_handle_request
 class TestConfig(ShinkenModulesTest):
 
     @classmethod
+    def _read_mongolog_and_raise(cls, log, proc, reason):
+        try:
+            with open(log) as fh:
+                mongolog = fh.read()
+        except Exception as err:
+            mongolog = "Couldn't read log from mongo log file: %s" % err
+        raise RuntimeError(
+            "%s: rc=%s stdout/err=%s ; monglog=%s" % (
+            reason, proc.returncode, proc.stdout.read(), mongolog))
+
+    @classmethod
     def setUpClass(cls):
-        os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
-        os.makedirs(_mongo_db)
+        # temp path for mongod files :
+        # as you can see it's relative path, that'll be relative to where the test is launched,
+        # which should be in the Shinken test directory.
+        mongo_path = cls._mongo_tmp_path = tempfile.mkdtemp(dir="./tmp/", prefix="mongo")
+        mongo_db = os.path.join(mongo_path, 'db')
+        mongo_log = os.path.join(mongo_path, 'log.txt')
+        os.system('/bin/rm -rf %r' % mongo_path)
+        os.makedirs(mongo_db)
         print('Starting embedded mongo daemon..')
         sock = socket.socket()
         sock.bind(('127.0.0.1', 0))
@@ -85,7 +93,7 @@ class TestConfig(ShinkenModulesTest):
         sock.close()
         cls.mongo_db_uri = "mongodb://127.0.0.1:%s" % port
         mp = cls._mongo_proc = subprocess.Popen(
-            (['/usr/bin/mongod', '--dbpath', _mongo_db, '--port', str(port), '--logpath', _mongo_log, '--smallfiles']),
+            (['/usr/bin/mongod', '--dbpath', mongo_db, '--port', str(port), '--logpath', mongo_log, '--smallfiles']),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
         )
         print('Giving it some secs to correctly start..')
@@ -97,12 +105,7 @@ class TestConfig(ShinkenModulesTest):
             time.sleep(1)
             mp.poll()
             if mp.returncode is not None:
-                try:
-                    mongolog = open(_mongo_log).read()
-                except Exception as err:
-                    mongolog = "Couldn't read log from mongo log file: %s" % err
-                raise RuntimeError("Launched mongod but it's directly died: rc=%s stdout/err=%s ; monglog=%s" % (
-                    mp.returncode, mp.stdout.read(), mongolog))
+                cls._read_mongolog_and_raise(mongo_log, mp, "Launched mongod but it's directly died")
 
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             errno = sock.connect_ex(('127.0.0.1', port))
@@ -111,7 +114,8 @@ class TestConfig(ShinkenModulesTest):
                 break
         else:
             mp.kill()
-            raise RuntimeError('could not connect to port %s : mongod failed to correctly start?' % port)
+            cls._read_mongolog_and_raise(mongo_log, mp, "could not connect to port %s : mongod failed to correctly start?")
+
         time_hacker.set_my_time()
 
     @classmethod
@@ -128,7 +132,7 @@ class TestConfig(ShinkenModulesTest):
             print("didn't exited after 10 secs ! killing it..")
             mp.kill()
         mp.wait()
-        os.system('/bin/rm -rf "%s"' % _mongo_tmp_path)
+        os.system('/bin/rm -rf %r' % cls._mongo_tmp_path)
 
 
     def tearDown(self):
