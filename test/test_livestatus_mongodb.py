@@ -114,7 +114,8 @@ class TestConfig(ShinkenModulesTest):
                 break
         else:
             mp.kill()
-            cls._read_mongolog_and_raise(mongo_log, mp, "could not connect to port %s : mongod failed to correctly start?")
+            cls._read_mongolog_and_raise(mongo_log, mp,
+                                         "could not connect to port %s : mongod failed to correctly start?" % port)
 
         time_hacker.set_my_time()
 
