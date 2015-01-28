@@ -96,10 +96,10 @@ class TestConfig(ShinkenModulesTest):
         port = sock.getsockname()[1]
         sock.close()
         cls.mongo_db_uri = "mongodb://127.0.0.1:%s" % port
+        mongo_args = ['/usr/bin/mongod', '--dbpath', mongo_db, '--port',
+                      str(port), '--logpath', mongo_log, '--smallfiles']
         mp = cls._mongo_proc = subprocess.Popen(
-            (['/usr/bin/mongod', '--dbpath', mongo_db, '--port', str(port), '--logpath', mongo_log, '--smallfiles']),
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False
-        )
+            mongo_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False)
         print('Giving it some secs to correctly start..')
         time_hacker.set_real_time()
         # mongo takes some time to startup as it creates freshly new database files
@@ -109,7 +109,8 @@ class TestConfig(ShinkenModulesTest):
             time.sleep(1)
             mp.poll()
             if mp.returncode is not None:
-                cls._read_mongolog_and_raise(mongo_log, mp, "Launched mongod but it's directly died")
+                cls._read_mongolog_and_raise(mongo_log, mp,
+                                             "Launched mongod but it's directly died")
 
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             errno = sock.connect_ex(('127.0.0.1', port))
@@ -118,8 +119,9 @@ class TestConfig(ShinkenModulesTest):
                 break
         else:
             mp.kill()
-            cls._read_mongolog_and_raise(mongo_log, mp,
-                                         "could not connect to port %s : mongod failed to correctly start?" % port)
+            cls._read_mongolog_and_raise(
+                mongo_log, mp,
+                "could not connect to port %s : mongod failed to correctly start?" % port)
 
         time_hacker.set_my_time()
 
@@ -216,7 +218,9 @@ class TestConfigSmall(TestConfig):
         print("-------------------------------------------")
 
         print("request logs from", int(now - 3600), int(now + 3600))
-        print("request logs from", time.asctime(time.localtime(int(now - 3600))), time.asctime(time.localtime(int(now + 3600))))
+        print("request logs from",
+              time.asctime(time.localtime(int(now - 3600))),
+              time.asctime(time.localtime(int(now + 3600))))
         request = """GET log
 Filter: time >= """ + str(int(now - 3600)) + """
 Filter: time <= """ + str(int(now + 3600)) + """
@@ -269,11 +273,12 @@ class TestConfigBig(TestConfig):
         # copied from test_livestatus_cache
         test_host_005 = self.sched.hosts.find_by_name("test_host_005")
         test_host_099 = self.sched.hosts.find_by_name("test_host_099")
-        test_ok_00 = self.sched.services.find_srv_by_name_and_hostname("test_host_005", "test_ok_00")
-        test_ok_01 = self.sched.services.find_srv_by_name_and_hostname("test_host_005", "test_ok_01")
-        test_ok_04 = self.sched.services.find_srv_by_name_and_hostname("test_host_005", "test_ok_04")
-        test_ok_16 = self.sched.services.find_srv_by_name_and_hostname("test_host_005", "test_ok_16")
-        test_ok_99 = self.sched.services.find_srv_by_name_and_hostname("test_host_099", "test_ok_01")
+        find = self.sched.services.find_srv_by_name_and_hostname
+        test_ok_00 = find("test_host_005", "test_ok_00")
+        test_ok_01 = find("test_host_005", "test_ok_01")
+        test_ok_04 = find("test_host_005", "test_ok_04")
+        test_ok_16 = find("test_host_005", "test_ok_16")
+        test_ok_99 = find("test_host_099", "test_ok_01")
 
         days = 4
         etime = time.time()
@@ -309,7 +314,8 @@ class TestConfigBig(TestConfig):
         sys.stdout = open(os.devnull, "w")
         should_be = 0
         for day in xrange(days):
-            sys.stderr.write("day %d now it is %s i run %d loops\n" % (day, time.ctime(time.time()), loops))
+            sys.stderr.write("day %d now it is %s i run %d loops\n" % (
+                day, time.ctime(time.time()), loops))
             self.scheduler_loop(2, [
                 [test_ok_00, 0, "OK"],
                 [test_ok_01, 0, "OK"],
@@ -330,7 +336,7 @@ class TestConfigBig(TestConfig):
                         [test_ok_16, 1, "WARN"],
                         [test_ok_99, 2, "CRIT"],
                     ])
-                    if int(time.time()) >= query_start and int(time.time()) <= query_end:
+                    if query_start <= int(time.time()) <= query_end:
                         should_be += 3
                         sys.stderr.write("now it should be %s\n" % should_be)
                 time.sleep(62)
@@ -342,7 +348,7 @@ class TestConfigBig(TestConfig):
                         [test_ok_16, 0, "OK"],
                         [test_ok_99, 0, "OK"],
                     ])
-                    if int(time.time()) >= query_start and int(time.time()) <= query_end:
+                    if query_start <= int(time.time()) <= query_end:
                         should_be += 1
                         sys.stderr.write("now it should be %s\n" % should_be)
                 time.sleep(2)
@@ -392,8 +398,12 @@ class TestConfigBig(TestConfig):
 
         # now we have a lot of events
         # find type = HOST ALERT for test_host_005
+        columns = (
+            "class time type state host_name service_description plugin_output message options "
+            "contact_name command_name state_type current_host_groups current_service_groups"
+        )
         request = """GET log
-Columns: class time type state host_name service_description plugin_output message options contact_name command_name state_type current_host_groups current_service_groups
+Columns: """ + columns + """
 Filter: time >= """ + str(int(query_start)) + """
 Filter: time <= """ + str(int(query_end)) + """
 Filter: type = SERVICE ALERT
