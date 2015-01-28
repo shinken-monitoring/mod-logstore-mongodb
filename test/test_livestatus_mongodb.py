@@ -65,6 +65,10 @@ sys.setcheckinterval(10000)
 @mock_livestatus_handle_request
 class TestConfig(ShinkenModulesTest):
 
+    # how much seconds give to mongod be fully started
+    # == listening on its input socket/port.
+    mongod_start_timeout = 60
+
     @classmethod
     def _read_mongolog_and_raise(cls, log, proc, reason):
         try:
@@ -100,7 +104,7 @@ class TestConfig(ShinkenModulesTest):
         time_hacker.set_real_time()
         # mongo takes some time to startup as it creates freshly new database files
         # so we need a relatively big timeout:
-        timeout = time.time() + 30
+        timeout = time.time() + cls.mongod_start_timeout
         while time.time() < timeout:
             time.sleep(1)
             mp.poll()
