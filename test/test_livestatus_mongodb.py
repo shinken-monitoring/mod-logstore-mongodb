@@ -166,7 +166,7 @@ class TestConfig(ShinkenModulesTest):
 @mock_livestatus_handle_request
 class TestConfigSmall(TestConfig):
     def setUp(self):
-        super(TestConfigSmall, self).setUp()
+        #super(TestConfigSmall, self).setUp()
         self.setup_with_file('etc/shinken_1r_1h_1s.cfg')
         Comment.id = 1
         self.testid = str(os.getpid() + random.randint(1, 1000))
