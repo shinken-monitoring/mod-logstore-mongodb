@@ -96,8 +96,9 @@ class TestConfig(ShinkenModulesTest):
         port = sock.getsockname()[1]
         sock.close()
         cls.mongo_db_uri = "mongodb://127.0.0.1:%s" % port
-        mongo_args = ['/usr/bin/mongod', '--dbpath', mongo_db, '--port',
-                      str(port), '--logpath', mongo_log, '--smallfiles']
+        mongo_args = ['/usr/bin/mongod', '--smallfiles', '--nojournal',
+                      '--dbpath', mongo_db, '--port', str(port),
+                      '--logpath', mongo_log]
         mp = cls._mongo_proc = subprocess.Popen(
             mongo_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False)
         print('Giving it some secs to correctly start..')
