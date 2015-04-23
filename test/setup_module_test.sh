@@ -7,7 +7,7 @@ get_name (){
 setup_submodule (){
     for dep in $(cat test/dep_modules.txt); do
         mname=$(basename $dep | sed 's/.git//g')
-        git clone --depth=15 $dep ~/$mname
+        git clone --depth=5 $dep ~/$mname
         rmname=$(get_name ~/$mname/)
         cp -r  ~/$mname/module ~/shinken/modules/$rmname
         [ -f ~/$mname/requirements.txt ] && pip install -r ~/$mname/requirements.txt
@@ -20,7 +20,7 @@ name=$(get_name)
 
 pip install pycurl
 pip install coveralls
-git clone https://github.com/naparuba/shinken.git ~/shinken
+git clone --depth 5 https://github.com/naparuba/shinken.git ~/shinken
 
 [ -f test/dep_modules.txt ] && setup_submodule
 [ -f requirements.txt ] && pip install -r requirements.txt
