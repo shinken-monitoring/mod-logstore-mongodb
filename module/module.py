@@ -243,7 +243,7 @@ class LiveStatusLogStoreMongoDB(BaseModule):
                 logger.error("[LogStoreMongoDB] Databased error occurred: %s" % exp)
             # FIXME need access to this #self.livestatus.count_event('log_message')
         else:
-            logger.info("[LogStoreMongoDB] This line is invalid: %s" % line)
+            logger.debug("[LogStoreMongoDB] This line is invalid: %s" % line)
 
 
     def add_filter(self, operator, attribute, reference):
