@@ -301,10 +301,10 @@ class LiveStatusLogStoreMongoDB(BaseModule):
         # The filters are text fragments which are put together to form a sql where-condition finally.
         # Add parameter Class (Host, Service), lookup datatype (default string), convert reference
         # which attributes are suitable for a sql statement
-        good_attributes = ['time', 'attempt', 'logclass', 'command_name', 'comment', 'contact_name', 'host_name', 'plugin_output', 'service_description', 'state', 'state_type', 'type']
+        good_attributes = ['time', 'attempt', 'logclass', 'command_name', 'comment', 'contact_name', 'message', 'host_name', 'plugin_output', 'service_description', 'state', 'state_type', 'type']
         good_operators = ['=', '!=']
         #  put strings in '' for the query
-        string_attributes = ['command_name', 'comment', 'contact_name', 'host_name', 'plugin_output', 'service_description', 'state_type', 'type']
+        string_attributes = ['command_name', 'comment', 'contact_name', 'host_name', 'message', 'plugin_output', 'service_description', 'state_type', 'type']
         if attribute in string_attributes:
             reference = "'%s'" % reference
 
