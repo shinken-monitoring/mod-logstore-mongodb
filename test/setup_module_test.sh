@@ -9,7 +9,7 @@ setup_submodule (){
         mname=$(basename $dep | sed 's/.git//g')
         git clone --depth=15 $dep ~/$mname
         rmname=$(get_name ~/$mname/)
-        cp -r  ~/$mname/module ~/shinken/modules/$rmname
+        cp -r  ~/$mname/module ~/shinken/test/modules/$rmname
         [ -f ~/$mname/requirements.txt ] && pip install -r ~/$mname/requirements.txt
     done
     # we need the livestatus test config files to be in shinken test config dir:
