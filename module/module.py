@@ -127,10 +127,6 @@ class LiveStatusLogStoreMongoDB(BaseModule):
                 self.max_logs_age = int(maxmatch.group(1)) * 365
         self.use_aggressive_sql = (getattr(modconf, 'use_aggressive_sql', '1') == '1')
         # This stack is used to create a full-blown select-statement
-        self.mongo_filter_stack = LiveStatusMongoStack()
-        # This stack is used to create a minimal select-statement which
-        # selects only by time >= and time <=
-        self.mongo_time_filter_stack = LiveStatusMongoStack()
         self.is_connected = DISCONNECTED
         self.backlog = []
         # Now sleep one second, so that won't get lineno collisions with the last second
@@ -144,6 +140,10 @@ class LiveStatusLogStoreMongoDB(BaseModule):
         pass
 
     def open(self):
+        self.mongo_filter_stack = LiveStatusMongoStack()
+        # This stack is used to create a minimal select-statement which
+        # selects only by time >= and time <=
+        self.mongo_time_filter_stack = LiveStatusMongoStack()
         try:
             if self.replica_set:
                 self.conn = pymongo.ReplicaSetConnection(self.mongodb_uri, replicaSet=self.replica_set, fsync=self.mongodb_fsync)
